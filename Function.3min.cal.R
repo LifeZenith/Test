@@ -69,7 +69,86 @@ SNR_cal<- function(x,y,peak_index,width){
   return(SNR)
 }
 
-cal_3min<- function(filename,unique_mz,mz_window,RT_width,span,SNR.th){
+# reconfig the index to hash table
+# input: target cpd Dr. Dai provided, first column cpd ID, second column mass, third column RT
+# output: hash table, cpd with the same mz in one entry, key is mass
+index_reconfig<- function(target_cpd){
+  index<- unique(target_cpd[,2])
+  h<- hash()
+  for (i in 1:length(index)){
+    sub_RT<- target_cpd[target_cpd[,2]==index[i],c(1,3)]
+    if (dim(sub_RT)[1]>1){
+      sub_RT<- sub_RT[order(sub_RT[,2]),]
+      RT_dif<- diff(sub_RT[,2])
+      k=1
+      group_RT<- vector(length = dim(sub_RT)[1])
+      for (j in 1:(dim(sub_RT)[1]-1)){
+        group_RT[j] = k
+        if (RT_dif[j]>10){
+          k=k+1
+        }
+      }
+      group_RT[dim(sub_RT)[1]]<- k
+      RT_combine<- sapply(unique(group_RT),function(x){
+        temp<- sub_RT[group_RT==x,]
+        cpd_combine<- Reduce(paste,as.list(temp[,1]))
+        lowRT<- min(temp[,2])-5
+        highRT<- max(temp[,2])+5
+        return(c(cpd_combine,lowRT,highRT))
+        })
+      RT_combine<- data.frame(t(RT_combine))
+      RT_combine[,2:3]<- apply(RT_combine[,2:3],2,as.numeric)
+    } else {
+      RT_combine<- cbind(sub_RT[,1],sub_RT[,2]-5,sub_RT[,2]+5)
+      RT_combine<- data.frame(RT_combine)
+      RT_combine[,2:3]<- apply(RT_combine[,2:3],2,as.numeric)
+    }
+    .set(h,keys = index[i], values = RT_combine)
+  }
+  return(h)
+}
+
+
+RT_match<- function(index_mat,RT_calculated,peak_area){
+  index_map<- sapply(RT_calculated,function(x){
+    left_judge<- x>index_mat[,2]
+    right_judge<- x<index_mat[,3]
+    if (length(which(left_judge & right_judge))==0){
+      return(NA)
+    } else{
+      return(which(left_judge & right_judge))
+    }
+    })
+  index_not_mapped<- which(is.na(index_map))
+  res_not_mapped<- cbind(RT_calculated,peak_area)[index_not_mapped,]
+  res_mapped<- sapply(1:dim(index_mat)[1],function(x){
+    index_tmp<- which(index_map==x)
+    if(length(index_tmp)==0){
+      return(c(NA,NA))
+    }
+    if (length(index_tmp)==1){
+      return(c(RT_calculated[index_tmp],peak_area[index_tmp]))
+    }
+    if (length(index_tmp)>1){
+      index_max<- which.max(peak_area[index_tmp])
+      index_tmp<- index_tmp[index_max]
+      return(c(RT_calculated[index_tmp],peak_area[index_tmp]))
+    }
+    })
+  return(list(res_mapped,res_not_mapped))
+}
+
+
+# main function of 3min calculation
+# input: 
+# filename - filename of mzXML file
+# unique_mass - unique mass of targeted cpds, can be used to find corresponding RT in index hash table
+# mz_window - search window size of mz, by default 0.01
+# RT_width, span - parameters used in peak finding, by default RT_width = 20, span =0.05
+# SNR.th - Signal to noise ratio threshold for the peaks, by default 3
+# hash_RT - hash table format of the targeted cpds
+# polarity - polarity of the experiment mode, -1: negative, 1: positive
+cal_3min<- function(filename,unique_mass,mz_window = 0.01,RT_width = 20,span = 0.05,SNR.th = 3,hash_RT,polarity){
   ms<- openMSfile(filename)
   hd<- header(ms)
   peaks<- peaks(ms)
@@ -89,10 +168,10 @@ cal_3min<- function(filename,unique_mz,mz_window,RT_width,span,SNR.th){
   for (i in 1:length(key)){
     .set(h, keys = key[i], values = peak_all[index==key[i],])
   }
-  tmp<- sapply(unique_mz,function(x){
+  tmp<- sapply(unique_mass,function(x){
     #tmp<- sapply(exact_mass[1:2],function(x){
-    lowmz = x-mz_window
-    highmz = x+mz_window
+    lowmz = x-mz_window+polarity*1.007276
+    highmz = x+mz_window+polarity*1.007276
     #chromatogram_raw<- peak_all[peak_all[,1]>= lowmz & peak_all[,1] <= highmz,c(3,2)]
     if (floor(lowmz)!=floor(highmz)){
       peak_sub<- rbind(h[[as.character(floor(lowmz))]],h[[as.character(floor(highmz))]])
@@ -139,6 +218,8 @@ cal_3min<- function(filename,unique_mz,mz_window,RT_width,span,SNR.th){
         peak_area<- NA
       }
     }
+    index_cpd<- hash_RT[[as.character(x)]]
+    RT_map_res<- RT_match(index_cpd,RT_calculated,peak_area)
     res<- cbind(mass,RT_calculated,peak_area)
     return(res)
   })
