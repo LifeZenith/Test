@@ -97,10 +97,12 @@ index_reconfig<- function(target_cpd){
         return(c(cpd_combine,lowRT,highRT))
         })
       RT_combine<- data.frame(t(RT_combine))
+      RT_combine[,1]<- as.character(RT_combine[,1])
       RT_combine[,2:3]<- apply(RT_combine[,2:3],2,as.numeric)
     } else {
       RT_combine<- cbind(sub_RT[,1],sub_RT[,2]-5,sub_RT[,2]+5)
       RT_combine<- data.frame(RT_combine)
+      RT_combine[,1]<- as.character(RT_combine[,1])
       RT_combine[,2:3]<- apply(RT_combine[,2:3],2,as.numeric)
     }
     .set(h,keys = index[i], values = RT_combine)
@@ -109,7 +111,7 @@ index_reconfig<- function(target_cpd){
 }
 
 
-RT_match<- function(index_mat,RT_calculated,peak_area){
+RT_match<- function(index_mat,RT_calculated,peak_area,mass){
   index_map<- sapply(RT_calculated,function(x){
     left_judge<- x>index_mat[,2]
     right_judge<- x<index_mat[,3]
@@ -120,7 +122,7 @@ RT_match<- function(index_mat,RT_calculated,peak_area){
     }
     })
   index_not_mapped<- which(is.na(index_map))
-  res_not_mapped<- cbind(RT_calculated,peak_area)[index_not_mapped,]
+  res_not_mapped<- rbind(rep(mass,length(RT_calculated)),RT_calculated,peak_area)[,index_not_mapped]
   res_mapped<- sapply(1:dim(index_mat)[1],function(x){
     index_tmp<- which(index_map==x)
     if(length(index_tmp)==0){
@@ -176,9 +178,13 @@ cal_3min<- function(filename,unique_mass,mz_window = 0.01,RT_width = 20,span = 0
     if (floor(lowmz)!=floor(highmz)){
       peak_sub<- rbind(h[[as.character(floor(lowmz))]],h[[as.character(floor(highmz))]])
     } else {
-      peak_sub<- h[[as.character(floor(x))]]
+      peak_sub<- h[[as.character(floor(lowmz))]]
     }
-    chromatogram_raw<- peak_sub[peak_sub[,1]>= lowmz & peak_sub[,1] <= highmz,c(3,2)]
+    if (class(peak_sub)=="numeric"){
+      chromatogram_raw<- c(0,0)
+    } else{
+      chromatogram_raw<- peak_sub[peak_sub[,1]>= lowmz & peak_sub[,1] <= highmz,c(3,2)]
+    }
     if (class(chromatogram_raw)=="numeric" | class(chromatogram_raw)=="NULL"){
       chromatogram_mat<- list("NULL")
       #return(chromatogram_mat)
@@ -219,9 +225,13 @@ cal_3min<- function(filename,unique_mass,mz_window = 0.01,RT_width = 20,span = 0
       }
     }
     index_cpd<- hash_RT[[as.character(x)]]
-    RT_map_res<- RT_match(index_cpd,RT_calculated,peak_area)
-    res<- cbind(mass,RT_calculated,peak_area)
-    return(res)
+    RT_map_res<- RT_match(index_cpd,RT_calculated,peak_area,x)
+
+    #res<- cbind(mass,RT_calculated,peak_area)
+    return(RT_map_res)
   })
-  return(tmp)
+  expr_mapped<- matrix(unlist(tmp[1,]),ncol = 2, byrow = T)
+  expr_not_mapped<- matrix(unlist(tmp[2,]),ncol = 3, byrow = T)
+  expr_not_mapped<- expr_not_mapped[!is.na(expr_not_mapped[,2]),]
+  return(list(expr_mapped,expr_not_mapped))
 }
