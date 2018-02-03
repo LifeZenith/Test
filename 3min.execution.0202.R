@@ -13,7 +13,7 @@ unique_mass<- unique(target_cpd[,2])
 row_head<- matrix(unlist(lapply(as.list(hash_RT),t)),ncol = 3, byrow = T)
 colnames(row_head)<- c("ID","lowRT","highRT")
 
-Cal_one_day<- function(directory){
+Cal_one_day<- function(directory,row_head,hash_RT,unique_mass,polarity){
   filelist<- dir(directory)
   filelist<- filelist[grepl("mzXML",filelist)]
   for (j in 1:length(filelist)){
@@ -41,11 +41,11 @@ folder_list<- dir()
 folder_list<- folder_list[!grepl(".xlsx",folder_list)]
 folder_list<- paste(getwd(),folder_list,sep = "/")
 
-expr_20180126_neg<- Cal_one_day(paste(folder_list[1],"neg",sep = "/"))
-expr_20180126_pos<- Cal_one_day(paste(folder_list[1],"pos",sep = "/"))
+expr_20180126_neg<- Cal_one_day(paste(folder_list[1],"neg",sep = "/"),row_head = row_head, hash_RT = hash_RT, unique_mass = unique_mass, polarity = -1)
+expr_20180126_pos<- Cal_one_day(paste(folder_list[1],"pos",sep = "/"),row_head = row_head, hash_RT = hash_RT, unique_mass = unique_mass, polarity = 1)
 
-expr_20180129_neg<- Cal_one_day(paste(folder_list[2],"neg",sep = "/"))
-expr_20180129_pos<- Cal_one_day(paste(folder_list[2],"pos",sep = "/"))
+expr_20180129_neg<- Cal_one_day(paste(folder_list[2],"neg",sep = "/"),row_head = row_head, hash_RT = hash_RT, unique_mass = unique_mass, polarity = -1)
+expr_20180129_pos<- Cal_one_day(paste(folder_list[2],"pos",sep = "/"),row_head = row_head, hash_RT = hash_RT, unique_mass = unique_mass, polarity = 1)
 
-expr_20180130_neg<- Cal_one_day(paste(folder_list[3],"neg",sep = "/"))
-expr_20180130_pos<- Cal_one_day(paste(folder_list[3],"pos",sep = "/"))
+expr_20180130_neg<- Cal_one_day(paste(folder_list[3],"neg",sep = "/"),row_head = row_head, hash_RT = hash_RT, unique_mass = unique_mass, polarity = -1)
+expr_20180130_pos<- Cal_one_day(paste(folder_list[3],"pos",sep = "/"),row_head = row_head, hash_RT = hash_RT, unique_mass = unique_mass, polarity = 1)
